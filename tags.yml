@@ -1,0 +1,30 @@
+---
+- hosts: all
+  become: true
+  tasks:
+    - name: Update update_cache
+      tags: always
+      apt:
+        update_cache: true
+
+- hosts: file_servers
+  become: true
+  tasks:
+    - name: Install cowsay
+      tags: cowsay
+      apt:
+        name:
+          - cowsay
+          - fortune
+        state: latest
+
+- hosts: db_servers
+  become: true
+  tasks:
+    - name: Install tree
+      tags: tree
+      apt:
+        name:
+          - tree
+        update_cache: true
+        state: latest
