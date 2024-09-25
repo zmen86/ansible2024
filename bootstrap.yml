@@ -1,0 +1,57 @@
+---
+- name: Update then full-upgrade and autoremove system
+  hosts: all
+  become: true
+  pre_tasks:
+    - name: Update repo cache
+      apt:
+        update_cache: true
+      tags:
+        - update
+
+    - name: Upgrade system
+      apt:
+        upgrade: full
+      tags:
+        - upgrade
+
+    - name: Check reboot required
+      stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+      tags:
+        - check_reboot
+
+    - name: Reboot if required
+      reboot:
+      when: reboot_required_file.stat.exists
+      tags:
+        - reboot
+
+    - name: Removing unnecessary dependencies
+      apt:
+        autoremove: true
+      tags:
+        - autoremove
+
+- name: Create users
+  hosts: web_servers
+  become: true
+  tasks:
+    - name: Create simone user
+      user:
+        name: simone
+        groups: root
+
+    - name: Add ssh key for simone
+      authorized_key:
+        user: simone
+        key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIN4WpOlDx7A5VRZuEgkXYvYIdxonmkERAqymxL9AafR1 minsk\evgeny.koltun@SA044"
+
+    - name: Add sudoers file for simone
+      copy:
+        src: sudoer_simone
+        dest: /etc/sudoers.d/simone
+        owner: root
+        group: root
+        mode: 0440
