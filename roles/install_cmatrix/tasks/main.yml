@@ -1,0 +1,6 @@
+- name: Install cmatrix
+  apt:
+    name:
+      - cmatrix
+    update_cache: true
+    state: latest

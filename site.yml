@@ -1,19 +1,6 @@
 ---
 - hosts: all
   become: true
-  tasks:
-    - name: Install updates
-      apt:
-        upgrade: full
-        update_cache: true
-      when: ansible_distribution == "Ubuntu"
-
-- hosts: web_servers
-  become: true
-  tasks:
-    - name: Install cowsay
-      apt:
-        name:
-          - cowsay
-        state: latest
-      when: ansible_distribution == "Ubuntu"
+  roles:
+    - update_upgrade
+    - install_cmatrix
