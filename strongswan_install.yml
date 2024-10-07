@@ -1,0 +1,92 @@
+---
+- name: Install StrongSwan to Ubuntu
+  hosts: test
+  become: yes
+  tasks:
+    - name: Apt update
+      apt:
+        update_cache: yes
+
+    - name: Install StrongSwan and other packages
+      apt:
+        name:
+          - strongswan
+          - strongswan-pki
+          - libcharon-extra-plugins
+          - libcharon-extauth-plugins
+          - libstrongswan-extra-plugins
+          - libtss2-tcti-tabrmd-dev
+        state: present
+
+    - name: Create directories for certs and keys
+      file:
+        path: "/etc/ipsec.d/{{ item }}"
+        state: directory
+        mode: "0700"
+      with_items:
+        - cacerts
+        - certs
+        - private
+
+    - name: Generate key
+      command: >
+        ipsec pki --gen --outform pem > /etc/ipsec.d/private/ca-key.pem
+      args:
+        creates: /etc/ipsec.d/private/ca-key.pem
+
+    - name: Create root cert
+      shell: >
+        ipsec pki --self --ca --lifetime 3650 --in /etc/ipsec.d/private/ca-key.pem --type rsa --dn "CN=VPN CA" --outform pem > /etc/ipsec.d/cacerts/ca-cert.pem
+      args:
+        creates: /etc/ipsec.d/cacerts/ca-cert.pem
+
+    - name: Create server cert
+      command: >
+        ipsec pki --gen --outform pem > /etc/ipsec.d/private/server-key.pem
+      args:
+        creates: /etc/ipsec.d/private/server-key.pem
+
+    - name: Create server cert part2
+      shell: >
+        ipsec pki --pub --in /etc/ipsec.d/private/server-key.pem | ipsec pki --issue --lifetime 1825 --cacert /etc/ipsec.d/cacerts/ca-cert.pem --cakey /etc/ipsec.d/private/ca-key.pem --dn "CN=balkon" --san 172.16.29.11 --flag serverAuth --flag ikeIntermediate --outform pem > /etc/ipsec.d/certs/server-cert.pem
+      args:
+        creates: /etc/ipsec.d/certs/server-cert.pem
+
+    - name: Configure StrongSwan
+      copy:
+        dest: /etc/ipsec.conf
+        content: |
+          config setup
+            charondebug="ike 2, knl 2, cfg 2"
+            uniqueids=no
+
+          conn %default
+            keyexchange=ikev2
+            ike=aes256-sha1-modp1024
+            esp=aes256-sha1
+            dpdaction=clear
+            dpddelay=300s
+            rekey=no
+
+            left=%any
+            leftsubnet=0.0.0.0/0
+            leftcert=/etc/ipsec.d/certs/server-cert.pem
+            #leftid=@your_server_domain
+            #leftsendcert=always
+            
+
+            right=%any
+            rightdns=8.8.8.8
+            rightsourceip=10.10.10.0/24
+            auto=add
+
+    - name: Configure secrets StrongSwan
+      copy:
+        dest: /etc/ipsec.secrets
+        content: |
+          : RSA "server-key.pem"
+
+    - name: Restart StrongSwan
+      service:
+        name: strongswan-starter
+        state: restarted
